@@ -653,9 +653,9 @@ impl Document {
     }
 
     /// Get fonts used by a page.
-    pub fn get_page_fonts(&self, page_id: ObjectId) -> Result<BTreeMap<Vec<u8>, &Dictionary>> {
+    pub fn get_page_fonts(&self, page_id: ObjectId) -> Result<BTreeMap<&[u8], &Dictionary>> {
         fn collect_fonts_from_resources<'a>(
-            resources: &'a Dictionary, fonts: &mut BTreeMap<Vec<u8>, &'a Dictionary>, doc: &'a Document,
+            resources: &'a Dictionary, fonts: &mut BTreeMap<&'a [u8], &'a Dictionary>, doc: &'a Document,
         ) {
             if let Ok(font) = resources.get(b"Font") {
                 let font_dict = match font {
@@ -670,8 +670,8 @@ impl Document {
                             Object::Dictionary(dict) => Some(dict),
                             _ => None,
                         };
-                        if !fonts.contains_key(name) {
-                            font.map(|font| fonts.insert(name.clone(), font));
+                        if !fonts.contains_key(&**name) {
+                            font.map(|font| fonts.insert(name, font));
                         }
                     }
                 }

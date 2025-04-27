@@ -57,11 +57,16 @@ impl Document {
     }
 
     pub fn extract_text_chunks(&self, page_numbers: &[u32]) -> Vec<Result<String>> {
-        let pages: BTreeMap<u32, (u32, u16)> = self.get_pages();
+        let pages = self.get_pages();
+
         page_numbers
             .iter()
             .flat_map(|page_number| {
-                let result = self.extract_text_chunks_from_page(&pages, *page_number);
+                let Some(page_id) = pages.get(&page_number) else {
+                    return vec![Err(Error::PageNumberNotFound(*page_number))];
+                };
+
+                let result = self.extract_text_chunks_from_page(*page_id);
                 match result {
                     Ok(text_chunks) => text_chunks,
                     Err(err) => vec![Err(err)],
@@ -70,9 +75,7 @@ impl Document {
             .collect()
     }
 
-    fn extract_text_chunks_from_page(
-        &self, pages: &BTreeMap<u32, (u32, u16)>, page_number: u32,
-    ) -> Result<Vec<Result<String>>> {
+    pub fn extract_text_chunks_from_page(&self, page_id: ObjectId) -> Result<Vec<Result<String>>> {
         fn collect_text(text: &mut String, encoding: &Encoding, operands: &[Object]) -> Result<()> {
             for operand in operands.iter() {
                 match operand {
@@ -94,10 +97,8 @@ impl Document {
             Ok(())
         }
         let mut collected_chunks_and_errs: Vec<std::result::Result<String, Error>> = Vec::new();
-
-        let page_id = *pages.get(&page_number).ok_or(Error::PageNumberNotFound(page_number))?;
         let fonts = self.get_page_fonts(page_id)?;
-        let encodings: BTreeMap<Vec<u8>, Encoding> = fonts
+        let encodings: BTreeMap<&[u8], Encoding> = fonts
             .into_iter()
             .filter_map(|(name, font)| match font.get_font_encoding(self) {
                 Ok(it) => Some((name, it)),
@@ -164,11 +165,11 @@ impl Document {
             .page_iter()
             .nth(page)
             .ok_or(Error::PageNumberNotFound(page_number))?;
-        let encodings: BTreeMap<Vec<u8>, Encoding> = self
+        let encodings: BTreeMap<&[u8], Encoding> = self
             .get_page_fonts(page_id)?
             .into_iter()
             .map(|(name, font)| font.get_font_encoding(self).map(|it| (name, it)))
-            .collect::<Result<BTreeMap<Vec<u8>, Encoding>>>()?;
+            .collect::<Result<_>>()?;
         let content_data = self.get_page_content(page_id)?;
         let mut content = Content::decode(&content_data)?;
         let mut current_encoding = None;
